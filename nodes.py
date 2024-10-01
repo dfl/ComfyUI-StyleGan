@@ -17,6 +17,7 @@ sys.modules["torch_utils"] = torch_utils
 
 import folder_paths
 from comfy.utils import PROGRESS_BAR_ENABLED, ProgressBar
+from comfy.model_management import get_torch_device
 
 # set the models directory
 if "stylegan" not in folder_paths.folder_names_and_paths:
@@ -40,9 +41,7 @@ class LoadStyleGAN:
     
     def load_stylegan(self, stylegan_file):
         with open(folder_paths.get_full_path("stylegan", stylegan_file), 'rb') as f:
-            G = pickle.load(f)['G_ema'].cuda()
-            # device = torch.device('cuda:0')
-            # G = legacy.load_network_pkl(f)['G_ema'].requires_grad_(False).to(device)
+            G = pickle.load(f)['G_ema'].to(get_torch_device())
         return (G,)
 
 class GenerateStyleGANLatent:
@@ -67,7 +66,7 @@ class GenerateStyleGANLatent:
         if class_label < 0:
             class_label = None
         
-        z = torch.randn([batch_size, stylegan_model.z_dim]).cuda()
+        z = torch.randn([batch_size, stylegan_model.z_dim]).to(get_torch_device())
         w = []
         for i in range(batch_size):
             w.append(stylegan_model.mapping(z[i].unsqueeze(0), class_label))
@@ -90,8 +89,7 @@ class StyleGANSampler:
     FUNCTION = "generate_image"
     CATEGORY = "StyleGAN"
     
-    def generate_image(self, stylegan_model, stylegan_latent, noise_mode, seed):
-        torch.manual_seed(seed)
+    def generate_image(self, stylegan_model, stylegan_latent, noise_mode):
         imgs = []
         batch_size = stylegan_latent.size(0)
         pbar = None
@@ -147,7 +145,7 @@ class StyleGANInversion:
         regularize_noise_weight
         ):
         
-        device = torch.device('cuda:0')
+        device = get_torch_device()
         img_resolution = stylegan_model.img_resolution
         target_image = torch.permute(image[...,:3], (0, 3, 1, 2)) # BHWC -> BCHW, RGB only
         if target_image.shape != (stylegan_model.img_channels, img_resolution, img_resolution):
