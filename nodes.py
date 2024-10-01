@@ -50,26 +50,33 @@ class GenerateStyleGANLatent:
         return {
             "required": {
                 "stylegan_model": ("STYLEGAN", ),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "class_label": ("INT", {"default": -1, "min": -1}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 1024}),
-                
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffff}),
             },
+            "optional": {
+                # "class_label": ("INT", {"default": -1, "min": -1}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 1024}),                
+                "psi": ("FLOAT", {"default": 0.7, "min": -1.0, "max": 1.0, "step": 0.05}),
+            }
         }
     
     RETURN_TYPES = ("STYLEGAN_LATENT",)
     FUNCTION = "generate_latent"
     CATEGORY = "StyleGAN"
     
-    def generate_latent(self, stylegan_model, seed, class_label, batch_size):
-        torch.manual_seed(seed)
-        if class_label < 0:
-            class_label = None
-        
-        z = torch.randn([batch_size, stylegan_model.z_dim]).to(get_torch_device())
+    def generate_latent(self, stylegan_model, seed, batch_size, psi):
+        # torch.manual_seed(seed)
+        # z = torch.randn([batch_size, stylegan_model.z_dim]).to(get_torch_device())
+
+        # legacy seed compatible with sd-webui-gan-generator
+        z = np.random.RandomState(seed).randn(batch_size, stylegan_model.z_dim)
+        z = torch.tensor(z, dtype=torch.float32).to(get_torch_device())
+
         w = []
+        w_avg = stylegan_model.mapping.w_avg
         for i in range(batch_size):
-            w.append(stylegan_model.mapping(z[i].unsqueeze(0), class_label))
+            _w = stylegan_model.mapping(z, None)
+            _w = w_avg + (_w - w_avg) * psi
+            w.append(_w)
         
         return (torch.cat(w, dim=0), )
 
@@ -81,7 +88,6 @@ class StyleGANSampler:
                 "stylegan_model": ("STYLEGAN", ),
                 "stylegan_latent": ("STYLEGAN_LATENT", ),
                 "noise_mode": (['const', 'random'],),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
         }
     
