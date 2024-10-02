@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from tqdm import trange
 
 from .slerp import slerp
+from .str_utils import str2num
 
 from . import dnnlib
 from . import torch_utils
@@ -50,7 +51,7 @@ class GenerateStyleGANLatent:
         return {
             "required": {
                 "stylegan_model": ("STYLEGAN", ),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffff}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
             "optional": {
                 # "class_label": ("INT", {"default": -1, "min": -1}),
@@ -64,12 +65,14 @@ class GenerateStyleGANLatent:
     CATEGORY = "StyleGAN"
     
     def generate_latent(self, stylegan_model, seed, batch_size, psi):
-        # torch.manual_seed(seed)
-        # z = torch.randn([batch_size, stylegan_model.z_dim]).to(get_torch_device())
+        if seed < 0xffffffff:
+            # legacy seed compatible with sd-webui-gan-generator
+            z = np.random.RandomState(seed).randn(batch_size, stylegan_model.z_dim)
+            z = torch.tensor(z, dtype=torch.float32).to(get_torch_device())
+        else:
+            torch.manual_seed(seed)
+            z = torch.randn([batch_size, stylegan_model.z_dim]).to(get_torch_device())
 
-        # legacy seed compatible with sd-webui-gan-generator
-        z = np.random.RandomState(seed).randn(batch_size, stylegan_model.z_dim)
-        z = torch.tensor(z, dtype=torch.float32).to(get_torch_device())
 
         w = []
         w_avg = stylegan_model.mapping.w_avg
@@ -186,6 +189,7 @@ class BlendStyleGANLatents:
                 "latent_2": ("STYLEGAN_LATENT", ),
                 "blend": ("FLOAT", {"default": 0.5, "min": -10.0, "max": 10.0, "step": 0.001}),
                 "mode": (["slerp", "lerp"],),
+                "mask": (["total (0xFFFF)", "coarse (0xFF00)", "mid (0x0FF0)", "fine (0x00FF)", "alt1 (0xF0F0)", "alt2 (0x0F0F)", "alt3 (0xF00F)"],)
             },
         }
     
@@ -193,16 +197,39 @@ class BlendStyleGANLatents:
     FUNCTION = "generate_latent"
     CATEGORY = "StyleGAN/extra"
     
-    def generate_latent(self, latent_1, latent_2, blend, mode):
+    def generate_latent(self, latent_1, latent_2, blend, mode, mask):
         if latent_1.shape != latent_2.shape:
             raise Exception(f"latent_1 shape {latent_1.shape} and latent_2 shape {latent_2.shape} do not match!")
-        
-        if mode == "slerp":
-            z = slerp(latent_1, latent_2, blend)
+
+        z = latent_1.clone() # transfer onto L image as default
+
+        if mask == 0xFFFF:
+            blend = self.jmap(blend, -1.0, 1.0, 0.0, 1.0) # make unipolar
         else:
-            z = torch.lerp(latent_1, latent_2, blend)
-        
-        return (z, )
+            if blend > 0: # transfer L onto R
+                z = latent_2.clone()
+            else: # transfer R onto L
+                blend = abs(blend)
+                latent_1,latent_2 = latent_2,latent_1 # swap L and R
+
+        mask = self.num2mask( str2num(mask) )
+
+        m = slerp if mode == "slerp" else torch.lerp
+        z[:,mask,:] = m(latent_1[:,mask,:], latent_2[:,mask,:], blend)
+
+        return (z,)
+
+    # @classmethod
+    def jmap(self, sourceValue, sourceRangeMin, sourceRangeMax, targetRangeMin, targetRangeMax) -> float:
+        if sourceRangeMax == sourceRangeMin:
+            raise ValueError("mapping from a range of zero will produce NaN!")
+        return targetRangeMin + ((targetRangeMax - targetRangeMin) * (sourceValue - sourceRangeMin)) / (sourceRangeMax - sourceRangeMin)
+
+    # @classmethod
+    def num2mask(self, num: int) -> np.ndarray:
+        return np.array([x=='1' for x in bin(num)[2:].zfill(16)], dtype=bool)
+
+
 
 class BatchAverageStyleGANLatents:
     @classmethod
