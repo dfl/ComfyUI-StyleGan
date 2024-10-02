@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-stylegan"
+description = "StyleGAN generation, @dfl's fork with added features"
+version = "1.0.1"
+license = { file = "LICENSE" }
+dependencies = ["numpy", "pickle", "ninja"]
+
+[project.urls]
+Repository = "https://github.com/dfl/ComfyUI-StyleGan"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "@dfl"
+DisplayName = "ComfyUI-StyleGan"
+Icon = ""
