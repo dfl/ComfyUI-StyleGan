@@ -76,10 +76,9 @@ class GenerateStyleGANLatent:
 
         w = []
         w_avg = stylegan_model.mapping.w_avg
-        for i in range(batch_size):
-            _w = stylegan_model.mapping(z, None)
-            _w = w_avg + (_w - w_avg) * psi
-            w.append(_w)
+        _w = stylegan_model.mapping(z, None)
+        _w = w_avg + (_w - w_avg) * psi
+        w.append(_w)
         
         return (torch.cat(w, dim=0), )
 
