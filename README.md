@@ -7,11 +7,12 @@ Original:
 https://github.com/NVlabs/stylegan3
 
 Models:  
-https://catalog.ngc.nvidia.com/orgs/nvidia/teams/research/models/stylegan2/files  
-https://catalog.ngc.nvidia.com/orgs/nvidia/teams/research/models/stylegan3/files  
-https://github.com/justinpinkney/awesome-pretrained-stylegan2
-https://github.com/justinpinkney/awesome-pretrained-stylegan3
-https://huggingface.co/quartzermz/BroGANv1.0.0
+- https://catalog.ngc.nvidia.com/orgs/nvidia/teams/research/models/stylegan2/files  
+- https://catalog.ngc.nvidia.com/orgs/nvidia/teams/research/models/stylegan3/files  
+- https://github.com/justinpinkney/awesome-pretrained-stylegan2
+- https://github.com/justinpinkney/awesome-pretrained-stylegan3
+- https://huggingface.co/EFHQ/efhq_weights/tree/main/stylegan
+- https://huggingface.co/quartzermz/BroGANv1.0.0
 
 Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the folder if it doesn't exist)
 
