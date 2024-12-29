@@ -27,6 +27,50 @@ else:
     current_paths, _ = folder_paths.folder_names_and_paths["stylegan"]
 folder_paths.folder_names_and_paths["stylegan"] = (current_paths, folder_paths.supported_pt_extensions)
 
+# TODO: example workflows
+# - Generating images from random latent vectors
+# - Generating variants of an image by moving the latent vector in a random direction
+# - Interpolating between two images by averaging their latent vectors
+# - !!Completing "image analogies" like A:B::C:D (the latent vector of D is calculated as C+B-A)
+
+class LoadStyleGANLatentImg:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_image": ("IMAGE",)
+                # "stylegan_image": (folder_paths.get_filename_list("output"), ),
+            },
+        }
+    RETURN_TYPES = ("STYLEGAN_LATENT",)
+    FUNCTION = "load_latent_image"
+    CATEGORY = "StyleGAN"
+
+    def load_latent_image( self, stylegan_image ):
+        # load file from drag and drop
+        # get latent zip from metadata
+        # extract latent from zip
+        # latent =
+        return (latent, )
+class SaveStyleGANLatentImg:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_image": ("IMAGE",),
+                "stylegan_latent": ("STYLEGAN_LATENT",),
+            },
+        }
+
+    RETURN_TYPES = (None,)
+    FUNCTION = "save_latent_image"
+    CATEGORY = "StyleGAN"
+
+    def save_latent_image( self, stylegan_latent, stylegan_image ):
+        # encode latent to zip
+        # add zip to image metadata
+        # save image as jpeg
+        return (None, )
 class LoadStyleGAN:
     @classmethod
     def INPUT_TYPES(s):
@@ -89,11 +133,13 @@ class StyleGANSampler:
             "required": {
                 "stylegan_model": ("STYLEGAN", ),
                 "stylegan_latent": ("STYLEGAN_LATENT", ),
-                "noise_mode": (['const', 'random'],),
+            },
+            "optional": {
+                "noise_mode": (["const", "random",], {"default": "const"}),
             },
         }
     
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE","STYLEGAN_LATENT",)
     FUNCTION = "generate_image"
     CATEGORY = "StyleGAN"
     
@@ -112,7 +158,7 @@ class StyleGANSampler:
                 pbar.update(1)
         
         imgs = torch.cat(imgs, dim=0)
-        return (imgs, )
+        return (imgs, stylegan_latent, )
 
 class StyleGANInversion:
     @classmethod
@@ -271,6 +317,8 @@ class StyleGANLatentFromBatch:
         return (w, )
 
 NODE_CLASS_MAPPINGS = {
+    "LoadStyleGANLatentImg": LoadStyleGANLatentImg,
+    "SaveStyleGANLatentImg": SaveStyleGANLatentImg,
     "LoadStyleGAN": LoadStyleGAN,
     "GenerateStyleGANLatent": GenerateStyleGANLatent,
     "StyleGANSampler": StyleGANSampler,
@@ -281,6 +329,8 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "LoadStyleGANLatentImg": "Load StyleGAN Latent from Image Metadata",
+    "SaveStyleGANLatentImg": "Save StyleGAN Latent to Image Metadata",
     "LoadStyleGAN": "Load StyleGAN Model",
     "GenerateStyleGANLatent": "Generate StyleGAN Latent",
     "StyleGANSampler": "StyleGAN Sampler",
