@@ -61,3 +61,11 @@ StyleGAN3:
 Setting up PyTorch plugin "bias_act_plugin"... Done.
 Setting up PyTorch plugin "filtered_lrelu_plugin"... Done.
 ```  
+
+### `ModuleNotFoundError: No module named 'pkg_resources'`
+
+The vendored `torch_utils` code (from NVIDIA's original StyleGAN3 repo) still imports `pkg_resources`, which `setuptools` 81+ no longer ships by default. If you hit this error, install an older `setuptools` in ComfyUI's own Python environment:
+
+```
+pip install "setuptools<81"
+```
