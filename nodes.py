@@ -1,10 +1,12 @@
 import os
 import sys
+import json
 import numpy as np
 import pickle
 import torch
 import torch.nn.functional as F
 from tqdm import trange
+from safetensors import safe_open
 
 from .slerp import slerp
 from .str_utils import str2num
@@ -71,6 +73,24 @@ class SaveStyleGANLatentImg:
         # add zip to image metadata
         # save image as jpeg
         return (None, )
+def load_stylegan_safetensors(path):
+    with safe_open(path, framework="pt", device="cpu") as f:
+        metadata = f.metadata()
+        weights = {key: f.get_tensor(key) for key in f.keys()}
+
+    arch = metadata["arch"]
+    init_kwargs = json.loads(metadata["init_kwargs"])
+    if arch == "stylegan3":
+        from . import networks_stylegan3 as networks
+    elif arch == "stylegan2":
+        from . import networks_stylegan2 as networks
+    else:
+        raise ValueError(f"Unknown StyleGAN architecture in safetensors metadata: {arch}")
+
+    G = networks.Generator(**init_kwargs)
+    G.load_state_dict(weights)
+    return G.eval()
+
 class LoadStyleGAN:
     @classmethod
     def INPUT_TYPES(s):
@@ -85,9 +105,13 @@ class LoadStyleGAN:
     CATEGORY = "StyleGAN"
     
     def load_stylegan(self, stylegan_file):
-        with open(folder_paths.get_full_path("stylegan", stylegan_file), 'rb') as f:
-            G = pickle.load(f)['G_ema'].to(get_torch_device())
-        return (G,)
+        path = folder_paths.get_full_path("stylegan", stylegan_file)
+        if path.endswith(".safetensors"):
+            G = load_stylegan_safetensors(path)
+        else:
+            with open(path, 'rb') as f:
+                G = pickle.load(f)['G_ema']
+        return (G.to(get_torch_device()),)
 
 class GenerateStyleGANLatent:
     @classmethod
