@@ -22,6 +22,15 @@ Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the 
 
 `BlendStyleGANLatents` lerp/slerp-blends two latents using a coarse/mid/fine mask, for style-mixing between two generated faces. Drag the image above into ComfyUI to load the example workflow.
 
+## Latent direction discovery (GANSpace / SeFa)
+
+`DiscoverGANSpaceDirections` and `DiscoverSeFaDirections` both find unsupervised edit directions in W-space, with no labeled attribute data required. Neither tells you what a direction does; use `StyleGANDirectionSweep` first to render a strength-sweep filmstrip for a given `component_index` and eyeball what it changes before committing to a strength.
+
+- `DiscoverGANSpaceDirections` samples random latents and runs PCA over them. Directions are scaled to roughly "1 sigma" units, so `strength` around +/-1-3 is a good starting range with `ApplyStyleGANDirection`.
+- `DiscoverSeFaDirections` eigen-decomposes the generator's style-modulation weights directly (no sampling, effectively instant). Directions are unit-normalized, so useful strengths are larger, e.g. +/-5-20.
+- Component sign and ordering can vary between GANSpace runs/seeds (PCA sign ambiguity) - a negative `strength` just flips the edit direction, same as blend direction in `BlendStyleGANLatents`.
+- `ApplyStyleGANDirection` moves a single latent along one component, optionally restricted to a coarse/mid/fine layer subset via the same `mask` convention as `BlendStyleGANLatents`. Chain multiple `ApplyStyleGANDirection` nodes to compose edits from several components.
+
 ## Installation
 
 StyleGAN uses custom CUDA extensions which are compiled at runtime, so unfortunately the setup process can be a bit of a pain.

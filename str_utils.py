@@ -19,6 +19,12 @@ def str2num(string) -> Union[int, None]:
     else:
         return None
 
+def num2mask(num: int, num_ws: int = 16) -> np.ndarray:
+    # generalized version of BlendStyleGANLatents.num2mask, taking num_ws
+    # explicitly so it works on models where num_ws != 16
+    bits = bin(num)[2:].zfill(num_ws)[-num_ws:]
+    return np.array([x == '1' for x in bits], dtype=bool)
+
 def num2hex(num: int ) -> str:
     return str(hex(num)) #.upper().replace('0X', '0x')
 

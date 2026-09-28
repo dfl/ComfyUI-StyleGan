@@ -366,6 +366,126 @@ class BlendStyleGANLatents:
 
 
 
+MASK_OPTIONS = ["total (0xFFFF)", "coarse (0xFF00)", "mid (0x0FF0)", "fine (0x00FF)", "alt1 (0xF0F0)", "alt2 (0x0F0F)", "alt3 (0xF00F)"]
+
+class DiscoverGANSpaceDirections:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_model": ("STYLEGAN", ),
+                "num_samples": ("INT", {"default": 5000, "min": 100, "max": 1000000}),
+                "num_components": ("INT", {"default": 10, "min": 1, "max": 512}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            },
+        }
+
+    RETURN_TYPES = ("STYLEGAN_DIRECTIONS",)
+    FUNCTION = "discover"
+    CATEGORY = "StyleGAN/directions"
+
+    def discover(self, stylegan_model, num_samples, num_components, seed):
+        from .ganspace import sample_ganspace_directions
+        device = get_torch_device()
+        directions, _mean = sample_ganspace_directions(stylegan_model, num_samples, num_components, seed, device)
+        return (directions,)
+
+class DiscoverSeFaDirections:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_model": ("STYLEGAN", ),
+                "num_components": ("INT", {"default": 10, "min": 1, "max": 512}),
+            },
+        }
+
+    RETURN_TYPES = ("STYLEGAN_DIRECTIONS",)
+    FUNCTION = "discover"
+    CATEGORY = "StyleGAN/directions"
+
+    def discover(self, stylegan_model, num_components):
+        from .sefa import compute_sefa_directions
+        directions = compute_sefa_directions(stylegan_model, num_components)
+        return (directions,)
+
+class ApplyStyleGANDirection:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_latent": ("STYLEGAN_LATENT", ),
+                "directions": ("STYLEGAN_DIRECTIONS", ),
+                "component_index": ("INT", {"default": 0, "min": 0}),
+                "strength": ("FLOAT", {"default": 1.0, "min": -50.0, "max": 50.0, "step": 0.05}),
+                "mask": (MASK_OPTIONS,),
+            },
+        }
+
+    RETURN_TYPES = ("STYLEGAN_LATENT",)
+    FUNCTION = "apply"
+    CATEGORY = "StyleGAN/directions"
+
+    def apply(self, stylegan_latent, directions, component_index, strength, mask):
+        from .str_utils import num2mask
+        idx = min(component_index, directions.shape[0] - 1)
+        direction = directions[idx].to(stylegan_latent.device, stylegan_latent.dtype)
+        num_ws = stylegan_latent.shape[1]
+        layer_mask = num2mask(str2num(mask), num_ws=num_ws)
+
+        z = stylegan_latent.clone()
+        z[:, layer_mask, :] = z[:, layer_mask, :] + strength * direction
+
+        return (z,)
+
+class StyleGANDirectionSweep:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_model": ("STYLEGAN", ),
+                "stylegan_latent": ("STYLEGAN_LATENT", ),
+                "directions": ("STYLEGAN_DIRECTIONS", ),
+                "component_index": ("INT", {"default": 0, "min": 0}),
+                "min_strength": ("FLOAT", {"default": -3.0, "min": -50.0, "max": 50.0, "step": 0.05}),
+                "max_strength": ("FLOAT", {"default": 3.0, "min": -50.0, "max": 50.0, "step": 0.05}),
+                "steps": ("INT", {"default": 7, "min": 2, "max": 64}),
+                "mask": (MASK_OPTIONS,),
+            },
+            "optional": {
+                "noise_mode": (["const", "random"], {"default": "const"}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "sweep"
+    CATEGORY = "StyleGAN/directions"
+
+    def sweep(self, stylegan_model, stylegan_latent, directions, component_index, min_strength, max_strength, steps, mask, noise_mode="const"):
+        from .str_utils import num2mask
+        idx = min(component_index, directions.shape[0] - 1)
+        direction = directions[idx].to(stylegan_latent.device, stylegan_latent.dtype)
+        num_ws = stylegan_latent.shape[1]
+        layer_mask = num2mask(str2num(mask), num_ws=num_ws)
+        base = stylegan_latent[0:1].detach().clone()
+
+        imgs = []
+        pbar = ProgressBar(steps) if PROGRESS_BAR_ENABLED and steps > 1 else None
+        for i in trange(steps):
+            t = min_strength + (max_strength - min_strength) * i / (steps - 1)
+            z = base.clone()
+            z[:, layer_mask, :] = z[:, layer_mask, :] + t * direction
+
+            img = stylegan_model.synthesis(z, noise_mode=noise_mode)
+            img = torch.permute(img, (0, 2, 3, 1))  # BCHW -> BHWC
+            img = torch.clip(img / 2 + 0.5, 0, 1)  # [-1, 1] -> [0, 1]
+            imgs.append(img)
+            if pbar is not None:
+                pbar.update(1)
+
+        imgs = torch.cat(imgs, dim=0)
+        return (imgs,)
+
 class BatchAverageStyleGANLatents:
     @classmethod
     def INPUT_TYPES(s):
@@ -418,6 +538,10 @@ NODE_CLASS_MAPPINGS = {
     "StyleGANInversion": StyleGANInversion,
     "StyleGANLatentToString": StyleGANLatentToString,
     "StringToStyleGANLatent": StringToStyleGANLatent,
+    "DiscoverGANSpaceDirections": DiscoverGANSpaceDirections,
+    "DiscoverSeFaDirections": DiscoverSeFaDirections,
+    "ApplyStyleGANDirection": ApplyStyleGANDirection,
+    "StyleGANDirectionSweep": StyleGANDirectionSweep,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -432,4 +556,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StyleGANInversion": "StyleGAN Inversion",
     "StyleGANLatentToString": "StyleGAN Latent to String",
     "StringToStyleGANLatent": "String to StyleGAN Latent",
+    "DiscoverGANSpaceDirections": "Discover GANSpace Directions",
+    "DiscoverSeFaDirections": "Discover SeFa Directions",
+    "ApplyStyleGANDirection": "Apply StyleGAN Direction",
+    "StyleGANDirectionSweep": "StyleGAN Direction Sweep",
 }
