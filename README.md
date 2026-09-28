@@ -14,7 +14,13 @@ Models:
 - https://huggingface.co/EFHQ/efhq_weights/tree/main/stylegan
 - https://huggingface.co/quartzermz/BroGANv1.0.0
 
-Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the folder if it doesn't exist)
+Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the folder if it doesn't exist). Models can also be `.safetensors`; use `convert_to_safetensors.py <model.pkl>` to convert one offline.
+
+## Seed mixing
+
+![seed mixer workflow](workflow_mixer.png)
+
+`BlendStyleGANLatents` lerp/slerp-blends two latents using a coarse/mid/fine mask, for style-mixing between two generated faces. Drag the image above into ComfyUI to load the example workflow.
 
 ## Installation
 

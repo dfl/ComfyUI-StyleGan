@@ -7,9 +7,11 @@ import torch
 import torch.nn.functional as F
 from tqdm import trange
 from safetensors import safe_open
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 from .slerp import slerp
-from .str_utils import str2num
+from .str_utils import str2num, tensor2str, str2tensor
 
 from . import dnnlib
 from . import torch_utils
@@ -35,44 +37,108 @@ folder_paths.folder_names_and_paths["stylegan"] = (current_paths, folder_paths.s
 # - Interpolating between two images by averaging their latent vectors
 # - !!Completing "image analogies" like A:B::C:D (the latent vector of D is calculated as C+B-A)
 
+LATENT_METADATA_KEY = "stylegan_latent"
+
 class LoadStyleGANLatentImg:
     @classmethod
     def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
         return {
             "required": {
-                "stylegan_image": ("IMAGE",)
-                # "stylegan_image": (folder_paths.get_filename_list("output"), ),
+                "stylegan_image": (sorted(files), {"image_upload": True}),
             },
         }
-    RETURN_TYPES = ("STYLEGAN_LATENT",)
+    RETURN_TYPES = ("IMAGE", "STYLEGAN_LATENT")
     FUNCTION = "load_latent_image"
     CATEGORY = "StyleGAN"
 
-    def load_latent_image( self, stylegan_image ):
-        # load file from drag and drop
-        # get latent zip from metadata
-        # extract latent from zip
-        # latent =
-        return (latent, )
+    def load_latent_image(self, stylegan_image):
+        image_path = folder_paths.get_annotated_filepath(stylegan_image)
+        img = Image.open(image_path)
+
+        encoded = img.info.get(LATENT_METADATA_KEY)
+        if encoded is None:
+            raise ValueError(f"{stylegan_image} has no '{LATENT_METADATA_KEY}' metadata; it wasn't saved with SaveStyleGANLatentImg")
+        latent = str2tensor(encoded).to(get_torch_device())
+
+        image = np.array(img.convert("RGB")).astype(np.float32) / 255.0
+        image = torch.from_numpy(image)[None,]
+
+        return (image, latent)
+
 class SaveStyleGANLatentImg:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "stylegan_image": ("IMAGE",),
                 "stylegan_latent": ("STYLEGAN_LATENT",),
+                "filename_prefix": ("STRING", {"default": "StyleGAN"}),
             },
         }
 
-    RETURN_TYPES = (None,)
+    RETURN_TYPES = ()
     FUNCTION = "save_latent_image"
     CATEGORY = "StyleGAN"
+    OUTPUT_NODE = True
 
-    def save_latent_image( self, stylegan_latent, stylegan_image ):
-        # encode latent to zip
-        # add zip to image metadata
-        # save image as jpeg
-        return (None, )
+    def save_latent_image(self, stylegan_latent, stylegan_image, filename_prefix):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, self.output_dir, stylegan_image[0].shape[1], stylegan_image[0].shape[0])
+
+        results = []
+        for batch_number, image in enumerate(stylegan_image):
+            i = 255. * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+
+            metadata = PngInfo()
+            index = min(batch_number, stylegan_latent.size(0) - 1)
+            latent = stylegan_latent[index:index + 1]
+            metadata.add_text(LATENT_METADATA_KEY, tensor2str(latent))
+
+            file = f"{filename}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+            results.append({"filename": file, "subfolder": subfolder, "type": "output"})
+            counter += 1
+
+        return {"ui": {"images": results}}
+
+class StyleGANLatentToString:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_latent": ("STYLEGAN_LATENT",),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "encode"
+    CATEGORY = "StyleGAN/extra"
+
+    def encode(self, stylegan_latent):
+        return (tensor2str(stylegan_latent),)
+
+class StringToStyleGANLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_latent_string": ("STRING", {"multiline": True}),
+            },
+        }
+
+    RETURN_TYPES = ("STYLEGAN_LATENT",)
+    FUNCTION = "decode"
+    CATEGORY = "StyleGAN/extra"
+
+    def decode(self, stylegan_latent_string):
+        return (str2tensor(stylegan_latent_string).to(get_torch_device()),)
 def load_stylegan_safetensors(path):
     with safe_open(path, framework="pt", device="cpu") as f:
         metadata = f.metadata()
@@ -350,6 +416,8 @@ NODE_CLASS_MAPPINGS = {
     "BatchAverageStyleGANLatents": BatchAverageStyleGANLatents,
     "StyleGANLatentFromBatch": StyleGANLatentFromBatch,
     "StyleGANInversion": StyleGANInversion,
+    "StyleGANLatentToString": StyleGANLatentToString,
+    "StringToStyleGANLatent": StringToStyleGANLatent,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -362,4 +430,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BatchAverageStyleGANLatents": "Batch Average StyleGAN Latents",
     "StyleGANLatentFromBatch": "StyleGAN Latent From Batch",
     "StyleGANInversion": "StyleGAN Inversion",
+    "StyleGANLatentToString": "StyleGAN Latent to String",
+    "StringToStyleGANLatent": "String to StyleGAN Latent",
 }
