@@ -179,6 +179,36 @@ class LoadStyleGAN:
                 G = pickle.load(f)['G_ema']
         return (G.to(get_torch_device()),)
 
+class LoadStyleGANDirections:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "stylegan_directions_file": (folder_paths.get_filename_list("stylegan"), ),
+            },
+            "optional": {
+                "direction_name": ("STRING", {"default": ""}),
+            },
+        }
+
+    RETURN_TYPES = ("STYLEGAN_DIRECTIONS",)
+    FUNCTION = "load_directions"
+    CATEGORY = "StyleGAN/directions"
+
+    def load_directions(self, stylegan_directions_file, direction_name=""):
+        path = folder_paths.get_full_path("stylegan", stylegan_directions_file)
+        with safe_open(path, framework="pt", device="cpu") as f:
+            keys = list(f.keys())
+            if direction_name:
+                if direction_name not in keys:
+                    raise ValueError(f"'{direction_name}' not found in {stylegan_directions_file}. Available: {', '.join(keys)}")
+                directions = f.get_tensor(direction_name).unsqueeze(0)
+            else:
+                metadata = f.metadata() or {}
+                order = json.loads(metadata["component_order"]) if "component_order" in metadata else sorted(keys)
+                directions = torch.stack([f.get_tensor(k) for k in order], dim=0)
+        return (directions.to(get_torch_device()),)
+
 class GenerateStyleGANLatent:
     @classmethod
     def INPUT_TYPES(s):
@@ -538,6 +568,7 @@ NODE_CLASS_MAPPINGS = {
     "StyleGANInversion": StyleGANInversion,
     "StyleGANLatentToString": StyleGANLatentToString,
     "StringToStyleGANLatent": StringToStyleGANLatent,
+    "LoadStyleGANDirections": LoadStyleGANDirections,
     "DiscoverGANSpaceDirections": DiscoverGANSpaceDirections,
     "DiscoverSeFaDirections": DiscoverSeFaDirections,
     "ApplyStyleGANDirection": ApplyStyleGANDirection,
@@ -556,6 +587,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StyleGANInversion": "StyleGAN Inversion",
     "StyleGANLatentToString": "StyleGAN Latent to String",
     "StringToStyleGANLatent": "String to StyleGAN Latent",
+    "LoadStyleGANDirections": "Load StyleGAN Directions",
     "DiscoverGANSpaceDirections": "Discover GANSpace Directions",
     "DiscoverSeFaDirections": "Discover SeFa Directions",
     "ApplyStyleGANDirection": "Apply StyleGAN Direction",

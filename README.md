@@ -31,6 +31,16 @@ Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the 
 - Component sign and ordering can vary between GANSpace runs/seeds (PCA sign ambiguity) - a negative `strength` just flips the edit direction, same as blend direction in `BlendStyleGANLatents`.
 - `ApplyStyleGANDirection` moves a single latent along one component, optionally restricted to a coarse/mid/fine layer subset via the same `mask` convention as `BlendStyleGANLatents`. Chain multiple `ApplyStyleGANDirection` nodes to compose edits from several components.
 
+You can also discover directions offline, without ComfyUI running, with `discover_directions.py`:
+
+```
+python discover_directions.py model.safetensors --method sefa
+python discover_directions.py model.safetensors --method ganspace --num-samples 5000
+python discover_directions.py model.safetensors --method sefa --sweep 0,1,2 --sweep-out sweep.png
+```
+
+This saves a `.safetensors` file (same folder as the model by default) with each component as its own named tensor (`component_00`, `component_01`, ...), and can optionally render a sweep-preview PNG grid for a few components in one shot (the `--sweep` option needs the compiled StyleGAN CUDA/MPS ops, same as running the model in ComfyUI; discovery itself does not). `LoadStyleGANDirections` loads this file: leave `direction_name` blank to get the whole batch back (for `StyleGANDirectionSweep`-style exploration by `component_index`), or fill it in once you know which component you want (e.g. `component_03`) to load just that one direction.
+
 ## Installation
 
 StyleGAN uses custom CUDA extensions which are compiled at runtime, so unfortunately the setup process can be a bit of a pain.
