@@ -38,7 +38,9 @@ python convert_to_safetensors.py model.pkl
 
 ![load and blend workflow](workflow_latent_img_mixer.png)
 
-Any image saved with `SaveStyleGANLatentImg` has its exact latent embedded in the PNG. `LoadStyleGANLatentImg` reads that back out directly (instant, exact, no seed or generation history needed) so you can blend two *files* instead of two seeds: drag/copy the images into ComfyUI's `input/` folder, then `LoadStyleGANLatentImg` x2 → `BlendStyleGANLatents` → `StyleGANSampler`, same as the seed-mixer above. This only works on images that were saved with `SaveStyleGANLatentImg`; a PNG with no embedded latent (e.g. a plain photo) raises a clear error instead of silently failing — for that case, use `StyleGANInversion` instead, which approximates a latent for *any* image via optimization.
+Any image saved with `SaveStyleGANLatentImg` has its exact latent embedded in the PNG. `LoadStyleGANLatentImg` reads that back out directly (instant, exact, no seed or generation history needed) so you can blend two *files* instead of two seeds: drag/copy the images into ComfyUI's `input/` folder, then `LoadStyleGANLatentImg` x2 → `BlendStyleGANLatents` → `StyleGANSampler`, same as the seed-mixer above. A PNG with no embedded latent (e.g. a plain photo) raises a clear error instead of silently failing — for that case, use `StyleGANInversion` instead, which approximates a latent for *any* image via optimization.
+
+You don't actually need `SaveStyleGANLatentImg` specifically: this extension patches core `SaveImage`/`PreviewImage` so *any* save of a `StyleGANSampler` output automatically carries the same embedded latent, no extra node required. (Look for a `StyleGAN:` prefix in the server log if you're ever debugging unrelated `SaveImage` behavior and want to rule this out.)
 
 To try the example workflow above as-is (not just as a template), copy `examples/face_A.png` and `examples/face_B.png` into your `ComfyUI/input/` folder first — the workflow's two `LoadStyleGANLatentImg` nodes reference those exact filenames, which (unlike the seed-mixer example) aren't portable on their own since they're specific saved images, not a seed number.
 

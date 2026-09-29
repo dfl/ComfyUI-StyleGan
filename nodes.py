@@ -1,10 +1,12 @@
 import os
 import sys
 import json
+import inspect
 import numpy as np
 import pickle
 import torch
 import torch.nn.functional as F
+from torch.utils.weak import WeakTensorKeyDictionary
 from tqdm import trange
 from safetensors import safe_open
 from PIL import Image
@@ -48,6 +50,78 @@ folder_paths.folder_names_and_paths["stylegan_directions"] = (current_direction_
 # - !!Completing "image analogies" like A:B::C:D (the latent vector of D is calculated as C+B-A)
 
 LATENT_METADATA_KEY = "stylegan_latent"
+
+# --- Auto-embed latent metadata into any SaveImage/PreviewImage output --------
+#
+# Rather than requiring SaveStyleGANLatentImg specifically, register the latent
+# against the in-memory image batch tensor's identity the moment StyleGANSampler
+# produces it, then patch core SaveImage/PreviewImage to splice our metadata
+# chunk into whatever file they just wrote, if (and only if) that exact tensor
+# object is one we recognize. No regeneration, no graph-walking: this only
+# fires when the pixels really are the direct, unmodified sampler output (any
+# processing node in between produces a new tensor object, breaking identity,
+# which is also the correct behavior -- the latent may no longer match).
+#
+# Weak-keyed by design: a strong-ref registry would pin GPU memory for whatever
+# images happened to still be in it, fighting ComfyUI's own execution cache
+# (which is what actually decides how long a tensor needs to stay alive).
+_latent_registry = WeakTensorKeyDictionary()
+
+def _register_latent_for_images(image_tensor, latent_tensor):
+    _latent_registry[image_tensor] = latent_tensor.detach().cpu()
+
+def _lookup_latent_for_images(image_tensor):
+    return _latent_registry.get(image_tensor)
+
+def _embed_latent_in_png(path, latent, compress_level):
+    img = Image.open(path)
+    metadata = PngInfo()
+    for k, v in img.info.items():
+        if isinstance(v, str):
+            metadata.add_text(k, v)
+    metadata.add_text(LATENT_METADATA_KEY, tensor2str(latent))
+    img.save(path, pnginfo=metadata, compress_level=compress_level)
+
+def _patch_core_save_nodes():
+    import nodes as comfy_core_nodes
+    from comfy.cli_args import args as comfy_args
+
+    if getattr(comfy_core_nodes.SaveImage, "_stylegan_latent_patched", False):
+        return  # already patched (e.g. module re-imported under a dev auto-reloader)
+
+    original_save_images = comfy_core_nodes.SaveImage.save_images
+    if "images" not in inspect.signature(original_save_images).parameters:
+        raise RuntimeError("SaveImage.save_images no longer takes an 'images' parameter; ComfyUI's save-node API has changed")
+
+    def patched_save_images(self, images, *args, **kwargs):
+        result = original_save_images(self, images, *args, **kwargs)
+        latent = _lookup_latent_for_images(images)
+        if latent is not None and not comfy_args.disable_metadata:
+            try:
+                entries = result.get("ui", {}).get("images", [])
+                type_to_dir = {
+                    "output": folder_paths.get_output_directory(),
+                    "temp": folder_paths.get_temp_directory(),
+                    "input": folder_paths.get_input_directory(),
+                }
+                compress_level = getattr(self, "compress_level", 4)
+                for i, entry in enumerate(entries):
+                    idx = min(i, latent.size(0) - 1)
+                    directory = type_to_dir.get(entry.get("type"), folder_paths.get_output_directory())
+                    path = os.path.join(directory, entry.get("subfolder", ""), entry["filename"])
+                    _embed_latent_in_png(path, latent[idx:idx + 1], compress_level)
+            except Exception as e:
+                print(f"StyleGAN: couldn't auto-embed latent metadata: {e}")
+        return result
+
+    patched_save_images._stylegan_latent_patched = True
+    comfy_core_nodes.SaveImage.save_images = patched_save_images
+    comfy_core_nodes.SaveImage._stylegan_latent_patched = True
+
+try:
+    _patch_core_save_nodes()
+except Exception as e:
+    print(f"StyleGAN: couldn't patch SaveImage for latent auto-embedding: {e}")
 
 class LoadStyleGANLatentImg:
     @classmethod
@@ -110,11 +184,12 @@ class LoadStyleGANLatentImg:
 
         encoded = img.info.get(LATENT_METADATA_KEY)
         if encoded is None:
-            raise ValueError(f"{stylegan_image} has no '{LATENT_METADATA_KEY}' metadata; it wasn't saved with SaveStyleGANLatentImg")
+            raise ValueError(f"{stylegan_image} has no '{LATENT_METADATA_KEY}' metadata; it wasn't produced by a StyleGANSampler output saved with SaveImage/PreviewImage/SaveStyleGANLatentImg")
         latent = str2tensor(encoded).to(get_torch_device())
 
         image = np.array(img.convert("RGB")).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
+        _register_latent_for_images(image, latent)
 
         return (image, latent)
 
@@ -336,6 +411,7 @@ class StyleGANSampler:
                 pbar.update(1)
         
         imgs = torch.cat(imgs, dim=0)
+        _register_latent_for_images(imgs, stylegan_latent)
         return (imgs, stylegan_latent, )
 
 class StyleGANInversion:
