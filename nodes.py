@@ -56,10 +56,31 @@ class LoadStyleGANLatentImg:
         # its latent metadata is just as likely to still be sitting in output/ as
         # to have been copied into input/, and ComfyUI's prompt validation rejects
         # any value not in this list regardless of where the file actually lives.
-        files = set()
+        # Filter to images that actually carry our metadata, not every image in
+        # those folders -- output/ in particular tends to be full of unrelated
+        # generations, and PNG metadata is cheap to check (PIL doesn't decode
+        # pixel data just to read .info).
+        candidates = set()
         for directory in (folder_paths.get_input_directory(), folder_paths.get_output_directory(), folder_paths.get_temp_directory()):
-            files.update(f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)))
-        files = folder_paths.filter_files_content_types(sorted(files), ["image"])
+            candidates.update(f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)))
+        candidates = folder_paths.filter_files_content_types(sorted(candidates), ["image"])
+
+        files = []
+        for f in candidates:
+            path = folder_paths.get_annotated_filepath(f) if os.path.isfile(os.path.join(folder_paths.get_input_directory(), f)) else None
+            if path is None:
+                for directory in (folder_paths.get_output_directory(), folder_paths.get_temp_directory()):
+                    candidate_path = os.path.join(directory, f)
+                    if os.path.isfile(candidate_path):
+                        path = candidate_path
+                        break
+            try:
+                with Image.open(path) as img:
+                    if LATENT_METADATA_KEY in img.info:
+                        files.append(f)
+            except Exception:
+                pass
+
         return {
             "required": {
                 "stylegan_image": (files, {"image_upload": True}),
