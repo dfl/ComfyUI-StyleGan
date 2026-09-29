@@ -386,7 +386,8 @@ class BlendStyleGANLatents:
 
         z = latent_1.clone() # transfer onto L image as default
 
-        if mask == 0xFFFF:
+        mask_num = str2num(mask)
+        if mask_num == 0xFFFF:
             blend = self.jmap(blend, -1.0, 1.0, 0.0, 1.0) # make unipolar
         else:
             if blend > 0: # transfer L onto R
@@ -395,7 +396,7 @@ class BlendStyleGANLatents:
                 blend = abs(blend)
                 latent_1,latent_2 = latent_2,latent_1 # swap L and R
 
-        mask = self.num2mask( str2num(mask) )
+        mask = self.num2mask( mask_num )
 
         m = slerp if mode == "slerp" else torch.lerp
         z[:,mask,:] = m(latent_1[:,mask,:], latent_2[:,mask,:], blend)
