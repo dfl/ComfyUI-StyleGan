@@ -34,6 +34,12 @@ python convert_to_safetensors.py model.pkl
 
 `BlendStyleGANLatents` lerp/slerp-blends two latents using a coarse/mid/fine mask, for style-mixing between two generated faces. Drag the image above into ComfyUI to load the example workflow.
 
+### Mixing from saved images instead of seeds
+
+![load and blend workflow](workflow_latent_img_mixer.png)
+
+Any image saved with `SaveStyleGANLatentImg` has its exact latent embedded in the PNG. `LoadStyleGANLatentImg` reads that back out directly (instant, exact, no seed or generation history needed) so you can blend two *files* instead of two seeds: drag/copy the images into ComfyUI's `input/` folder, then `LoadStyleGANLatentImg` x2 → `BlendStyleGANLatents` → `StyleGANSampler`, same as the seed-mixer above. This only works on images that were saved with `SaveStyleGANLatentImg`; a PNG with no embedded latent (e.g. a plain photo) raises a clear error instead of silently failing — for that case, use `StyleGANInversion` instead, which approximates a latent for *any* image via optimization.
+
 ## Latent direction discovery (GANSpace / SeFa)
 
 `DiscoverGANSpaceDirections` and `DiscoverSeFaDirections` both find unsupervised edit directions in W-space, with no labeled attribute data required. Neither tells you what a direction does; use `StyleGANDirectionSweep` first to render a strength-sweep filmstrip for a given `component_index` and eyeball what it changes before committing to a strength.
