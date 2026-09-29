@@ -20,6 +20,8 @@ sys.modules["dnnlib"] = dnnlib
 sys.modules["torch_utils"] = torch_utils
 # sys.modules["legacy"] = legacy
 
+from .convert_to_safetensors import save_stylegan_safetensors
+
 import folder_paths
 from comfy.utils import PROGRESS_BAR_ENABLED, ProgressBar
 from comfy.model_management import get_torch_device
@@ -175,8 +177,16 @@ class LoadStyleGAN:
         if path.endswith(".safetensors"):
             G = load_stylegan_safetensors(path)
         else:
-            with open(path, 'rb') as f:
-                G = pickle.load(f)['G_ema']
+            cache_path = os.path.splitext(path)[0] + ".safetensors"
+            if os.path.isfile(cache_path):
+                G = load_stylegan_safetensors(cache_path)
+            else:
+                with open(path, 'rb') as f:
+                    G = pickle.load(f)['G_ema']
+                try:
+                    save_stylegan_safetensors(G, cache_path)
+                except Exception as e:
+                    print(f"StyleGAN: couldn't cache {cache_path} as safetensors: {e}")
         return (G.to(get_torch_device()),)
 
 class GenerateStyleGANLatent:

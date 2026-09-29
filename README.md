@@ -14,7 +14,19 @@ Models:
 - https://huggingface.co/EFHQ/efhq_weights/tree/main/stylegan
 - https://huggingface.co/quartzermz/BroGANv1.0.0
 
-Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the folder if it doesn't exist). Models can also be `.safetensors`; use `convert_to_safetensors.py <model.pkl>` to convert one offline.
+Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the folder if it doesn't exist).
+
+## Safetensors
+
+`LoadStyleGAN` prefers `.safetensors` checkpoints. `.pkl` files aren't just weights though, they're a pickled Python object (architecture + weights), so the first time you load a `.pkl`, `LoadStyleGAN` unpickles it once and automatically writes a `.safetensors` cache next to it (same folder, same name). Every load after that uses the cache and never touches `pickle` again.
+
+The cache records the model's exact original constructor arguments (`init_kwargs`, captured automatically by `torch_utils.persistence` for every StyleGAN2/3 model) as metadata alongside the weights, so reloading reconstructs the exact same architecture rather than guessing hyperparameters from tensor shapes. Verified bit-exact against the original `.pkl` output.
+
+To convert without loading into ComfyUI first (e.g. to batch-convert a models folder), run the same logic standalone:
+
+```
+python convert_to_safetensors.py model.pkl
+```
 
 ## Seed mixing
 
@@ -62,10 +74,3 @@ Setting up PyTorch plugin "bias_act_plugin"... Done.
 Setting up PyTorch plugin "filtered_lrelu_plugin"... Done.
 ```  
 
-### `ModuleNotFoundError: No module named 'pkg_resources'`
-
-The vendored `torch_utils` code (from NVIDIA's original StyleGAN3 repo) still imports `pkg_resources`, which `setuptools` 81+ no longer ships by default. If you hit this error, install an older `setuptools` in ComfyUI's own Python environment:
-
-```
-pip install "setuptools<81"
-```

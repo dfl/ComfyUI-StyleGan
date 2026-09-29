@@ -15,12 +15,15 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import dnnlib
-import torch_utils
-sys.modules["dnnlib"] = dnnlib
-sys.modules["torch_utils"] = torch_utils
+if "dnnlib" not in sys.modules:
+    # Only needed standalone (`python convert_to_safetensors.py`); when imported
+    # from nodes.py, dnnlib/torch_utils are already set up there, and doing this
+    # again would import a second, distinct copy of torch_utils.persistence.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import dnnlib
+    import torch_utils
+    sys.modules["dnnlib"] = dnnlib
+    sys.modules["torch_utils"] = torch_utils
 
 import pickle
 from safetensors.torch import save_model
@@ -34,11 +37,7 @@ def detect_arch(G):
     raise ValueError("Unrecognized StyleGAN architecture (neither stylegan2 nor stylegan3 synthesis network)")
 
 
-def convert(pkl_path: Path):
-    safetensors_path = pkl_path.with_suffix(".safetensors")
-    with open(pkl_path, "rb") as f:
-        G = pickle.load(f)["G_ema"]
-
+def save_stylegan_safetensors(G, safetensors_path):
     arch = detect_arch(G)
     init_kwargs = json.loads(json.dumps(dict(G.init_kwargs)))  # drop EasyDict/numpy types
 
@@ -46,6 +45,15 @@ def convert(pkl_path: Path):
         "arch": arch,
         "init_kwargs": json.dumps(init_kwargs),
     })
+    return arch, init_kwargs
+
+
+def convert(pkl_path: Path):
+    safetensors_path = pkl_path.with_suffix(".safetensors")
+    with open(pkl_path, "rb") as f:
+        G = pickle.load(f)["G_ema"]
+
+    arch, init_kwargs = save_stylegan_safetensors(G, safetensors_path)
     print(f"{pkl_path.name}: {arch}, {len(init_kwargs)} init_kwargs -> {safetensors_path.name}")
 
 
