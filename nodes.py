@@ -52,12 +52,17 @@ LATENT_METADATA_KEY = "stylegan_latent"
 class LoadStyleGANLatentImg:
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        files = folder_paths.filter_files_content_types(files, ["image"])
+        # Include output/ and temp/, not just input/: a saved StyleGAN image with
+        # its latent metadata is just as likely to still be sitting in output/ as
+        # to have been copied into input/, and ComfyUI's prompt validation rejects
+        # any value not in this list regardless of where the file actually lives.
+        files = set()
+        for directory in (folder_paths.get_input_directory(), folder_paths.get_output_directory(), folder_paths.get_temp_directory()):
+            files.update(f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)))
+        files = folder_paths.filter_files_content_types(sorted(files), ["image"])
         return {
             "required": {
-                "stylegan_image": (sorted(files), {"image_upload": True}),
+                "stylegan_image": (files, {"image_upload": True}),
             },
         }
     RETURN_TYPES = ("IMAGE", "STYLEGAN_LATENT")
@@ -66,6 +71,20 @@ class LoadStyleGANLatentImg:
 
     def load_latent_image(self, stylegan_image):
         image_path = folder_paths.get_annotated_filepath(stylegan_image)
+        if not os.path.isfile(image_path):
+            # Browsing to a file outside input/ (e.g. picking one from the output
+            # gallery) doesn't reliably annotate the widget value with "[output]"/
+            # "[temp]" for custom nodes the way it does for the built-in LoadImage,
+            # so get_annotated_filepath falls back to input/ and misses it. Fall
+            # back to searching the other folders by basename before giving up.
+            basename = os.path.basename(stylegan_image)
+            for directory in (folder_paths.get_output_directory(), folder_paths.get_temp_directory()):
+                candidate = os.path.join(directory, basename)
+                if os.path.isfile(candidate):
+                    image_path = candidate
+                    break
+            else:
+                raise FileNotFoundError(f"Could not find '{stylegan_image}' in input, output, or temp directories")
         img = Image.open(image_path)
 
         encoded = img.info.get(LATENT_METADATA_KEY)
