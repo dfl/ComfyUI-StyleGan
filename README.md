@@ -34,6 +34,25 @@ python convert_to_safetensors.py model.pkl
 
 `BlendStyleGANLatents` lerp/slerp-blends two latents using a coarse/mid/fine mask, for style-mixing between two generated faces. Drag the image above into ComfyUI to load the example workflow.
 
+## Latent direction discovery (GANSpace / SeFa)
+
+`DiscoverGANSpaceDirections` and `DiscoverSeFaDirections` both find unsupervised edit directions in W-space, with no labeled attribute data required. Neither tells you what a direction does; use `StyleGANDirectionSweep` first to render a strength-sweep filmstrip for a given `component_index` and eyeball what it changes before committing to a strength.
+
+- `DiscoverGANSpaceDirections` samples random latents and runs PCA over them. Directions are scaled to roughly "1 sigma" units, so `strength` around +/-1-3 is a good starting range with `ApplyStyleGANDirection`.
+- `DiscoverSeFaDirections` eigen-decomposes the generator's style-modulation weights directly (no sampling, effectively instant). Directions are unit-normalized, so useful strengths are larger, e.g. +/-5-20.
+- Component sign and ordering can vary between GANSpace runs/seeds (PCA sign ambiguity) - a negative `strength` just flips the edit direction, same as blend direction in `BlendStyleGANLatents`.
+- `ApplyStyleGANDirection` moves a single latent along one component, optionally restricted to a coarse/mid/fine layer subset via the same `mask` convention as `BlendStyleGANLatents`. Chain multiple `ApplyStyleGANDirection` nodes to compose edits from several components.
+
+You can also discover directions offline, without ComfyUI running, with `discover_directions.py`:
+
+```
+python discover_directions.py model.safetensors --method sefa
+python discover_directions.py model.safetensors --method ganspace --num-samples 5000
+python discover_directions.py model.safetensors --method sefa --sweep 0,1,2 --sweep-out sweep.png
+```
+
+This saves a `.safetensors` file (same folder as the model by default) with each component as its own named tensor (`component_00`, `component_01`, ...), and can optionally render a sweep-preview PNG grid for a few components in one shot (the `--sweep` option needs the compiled StyleGAN CUDA/MPS ops, same as running the model in ComfyUI; discovery itself does not). `LoadStyleGANDirections` loads this file: leave `direction_name` blank to get the whole batch back (for `StyleGANDirectionSweep`-style exploration by `component_index`), or fill it in once you know which component you want (e.g. `component_03`) to load just that one direction.
+
 ## Installation
 
 StyleGAN uses custom CUDA extensions which are compiled at runtime, so unfortunately the setup process can be a bit of a pain.
