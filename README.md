@@ -3,6 +3,8 @@
 Basic support for StyleGAN2 and StyleGAN3 models.  
 ![workflow](workflow.png)
 
+This is [@dfl](https://github.com/dfl)'s actively maintained fork of [spacepxl/ComfyUI-StyleGan](https://github.com/spacepxl/ComfyUI-StyleGan), with several additions on top of the original: automatic `.safetensors` caching/conversion for `.pkl` checkpoints, latent embedding in saved PNGs (with model-compatibility tracking), seed/image mixing, unsupervised latent direction discovery (GANSpace/SeFa) with strength-sweep previews, and StyleGAN+FaceID support.
+
 Original:  
 https://github.com/NVlabs/stylegan3
 
@@ -77,6 +79,10 @@ Example above: `BroGANv1.2.0`, GANSpace `component_02`, coarse mask, `StyleGANDi
 ![faceid workflow](workflow_faceid.png)
 
 StyleGAN's mapping network generates a face latent (and rendered face) far faster than a diffusion model, making it a good identity source for `IPAdapter FaceID`/InstantID: generate a candidate face with `GenerateStyleGANLatent` + `StyleGANSampler`, then feed that image into `IPAdapterUnifiedLoaderFaceID` to condition an SD1.5/SDXL checkpoint's generation on that identity. Drag the image above into ComfyUI to load the example workflow.
+
+## StyleGAN + Krea 2 identity editing
+
+A StyleGAN-generated face also works as the source image for [ComfyUI-Krea2Edit](https://github.com/lbouaraba/comfyui-krea2edit)'s Krea 2 Identity Edit LoRA, which does instruction-based, identity-preserving edits ("recolor the car to matte black", pose/outfit/scene changes, etc.) instead of resampling a new face: generate a candidate face with `GenerateStyleGANLatent` + `StyleGANSampler`, then wire that image into `VAEEncode` (→ `Krea2EditModelPatch.source_latent`) and `Krea2EditGroundedEncode.image` in place of a `LoadImage` node, same as any other Krea2Edit source. See that repo's README for full node wiring and usage notes.
 
 ## Installation
 
