@@ -635,6 +635,7 @@ class StyleGANDirectionSweep:
         base = stylegan_latent[0:1].detach().clone()
 
         imgs = []
+        latents = []
         pbar = ProgressBar(steps) if PROGRESS_BAR_ENABLED and steps > 1 else None
         for i in trange(steps):
             t = min_strength + (max_strength - min_strength) * i / (steps - 1)
@@ -645,10 +646,12 @@ class StyleGANDirectionSweep:
             img = torch.permute(img, (0, 2, 3, 1))  # BCHW -> BHWC
             img = torch.clip(img / 2 + 0.5, 0, 1)  # [-1, 1] -> [0, 1]
             imgs.append(img)
+            latents.append(z)
             if pbar is not None:
                 pbar.update(1)
 
         imgs = torch.cat(imgs, dim=0)
+        _register_latent_for_images(imgs, torch.cat(latents, dim=0))
         return (imgs,)
 
 class BatchAverageStyleGANLatents:
