@@ -53,6 +53,12 @@ python discover_directions.py model.safetensors --method sefa --sweep 0,1,2 --sw
 
 This saves a `.safetensors` file (same folder as the model by default) with each component as its own named tensor (`component_00`, `component_01`, ...), and can optionally render a sweep-preview PNG grid for a few components in one shot (the `--sweep` option needs the compiled StyleGAN CUDA/MPS ops, same as running the model in ComfyUI; discovery itself does not). `LoadStyleGANDirections` loads this file: leave `direction_name` blank to get the whole batch back (for `StyleGANDirectionSweep`-style exploration by `component_index`), or fill it in once you know which component you want (e.g. `component_03`) to load just that one direction.
 
+## StyleGAN + FaceID
+
+![faceid workflow](workflow_faceid.png)
+
+StyleGAN's mapping network generates a face latent (and rendered face) far faster than a diffusion model, making it a good identity source for `IPAdapter FaceID`/InstantID: generate a candidate face with `GenerateStyleGANLatent` + `StyleGANSampler`, then feed that image into `IPAdapterUnifiedLoaderFaceID` to condition an SD1.5/SDXL checkpoint's generation on that identity. Drag the image above into ComfyUI to load the example workflow.
+
 ## Installation
 
 StyleGAN uses custom CUDA extensions which are compiled at runtime, so unfortunately the setup process can be a bit of a pain.
