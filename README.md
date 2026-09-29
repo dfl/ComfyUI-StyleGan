@@ -13,6 +13,7 @@ Models:
 - https://github.com/justinpinkney/awesome-pretrained-stylegan3
 - https://huggingface.co/EFHQ/efhq_weights/tree/main/stylegan
 - https://huggingface.co/quartzermz/BroGANv1.0.0
+- https://huggingface.co/quartzermz/BroGANv2.0.0
 
 Place any models you want to use in `ComfyUI/models/stylegan/*.pkl` (create the folder if it doesn't exist).
 
