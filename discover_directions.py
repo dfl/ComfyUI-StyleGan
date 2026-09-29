@@ -136,7 +136,12 @@ def main():
     else:
         directions, _mean = sample_ganspace_directions(G, args.num_samples, args.num_components, args.seed, device)
 
-    out_path = args.out or args.model.with_name(f"{args.model.stem}_{args.method}_directions.safetensors")
+    # default: ComfyUI/models/stylegan_directions/, a sibling of the model's own
+    # models/stylegan/ folder, so LoadStyleGANDirections' file picker doesn't mix
+    # direction bundles in with model checkpoints
+    default_out = args.model.parent.parent / "stylegan_directions" / f"{args.model.stem}_{args.method}_directions.safetensors"
+    out_path = args.out or default_out
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     save_directions(directions, out_path, args.method)
     print(f"{args.model.name}: {args.method}, {directions.shape[0]} components -> {out_path.name}")
 

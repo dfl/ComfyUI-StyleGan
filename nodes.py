@@ -33,6 +33,14 @@ else:
     current_paths, _ = folder_paths.folder_names_and_paths["stylegan"]
 folder_paths.folder_names_and_paths["stylegan"] = (current_paths, folder_paths.supported_pt_extensions)
 
+# direction bundles live in their own folder, separate from model checkpoints,
+# so the two don't show up mixed together in either node's file picker
+if "stylegan_directions" not in folder_paths.folder_names_and_paths:
+    current_direction_paths = [os.path.join(folder_paths.models_dir, "stylegan_directions")]
+else:
+    current_direction_paths, _ = folder_paths.folder_names_and_paths["stylegan_directions"]
+folder_paths.folder_names_and_paths["stylegan_directions"] = (current_direction_paths, {".safetensors"})
+
 # TODO: example workflows
 # - Generating images from random latent vectors
 # - Generating variants of an image by moving the latent vector in a random direction
@@ -194,7 +202,7 @@ class LoadStyleGANDirections:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "stylegan_directions_file": (folder_paths.get_filename_list("stylegan"), ),
+                "stylegan_directions_file": (folder_paths.get_filename_list("stylegan_directions"), ),
             },
             "optional": {
                 "direction_name": ("STRING", {"default": ""}),
@@ -206,7 +214,7 @@ class LoadStyleGANDirections:
     CATEGORY = "StyleGAN/directions"
 
     def load_directions(self, stylegan_directions_file, direction_name=""):
-        path = folder_paths.get_full_path("stylegan", stylegan_directions_file)
+        path = folder_paths.get_full_path("stylegan_directions", stylegan_directions_file)
         with safe_open(path, framework="pt", device="cpu") as f:
             keys = list(f.keys())
             if direction_name:
