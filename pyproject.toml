@@ -1,5 +1,5 @@
 [project]
-name = "comfyui-stylegan"
+name = "comfyui-stylegan-dfl"
 description = "StyleGAN2 and StyleGAN3 support for ComfyUI, @dfl's fork with added features"
 version = "1.0.1"
 requires-python = ">=3.10"
@@ -17,6 +17,6 @@ Documentation = "https://github.com/dfl/ComfyUI-StyleGan#readme"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = "@dfl"
+PublisherId = "dflfd"
 DisplayName = "ComfyUI-StyleGan"
 Icon = ""
