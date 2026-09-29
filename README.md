@@ -55,7 +55,7 @@ This saves a `.safetensors` file (same folder as the model by default) with each
 
 ![direction editing workflow](workflow_directions.png)
 
-Example above: `BroGANv1.2.0`, GANSpace `component_02`, coarse mask, strength 5 — a clean, disentangled smile direction. Drag the image into ComfyUI to load the workflow.
+Example above: `BroGANv1.2.0`, GANSpace `component_02`, coarse mask, `StyleGANDirectionSweep` from 0 to 9 in 4 steps — a clean, disentangled smile direction that starts breaking down past ~strength 7-8 (visible ghosting at +9). Drag the image into ComfyUI to load the workflow.
 
 **A note on MPS + PyTorch versions:** we found StyleGAN3 synthesis results can differ meaningfully between PyTorch versions on the same MPS device for the same seed/direction (verified: torch 2.7.0 and 2.10.0 reproduce cleanly, torch 2.14.0 gave visibly different, worse results for this same example). If a direction that should show a clear effect looks wrong or flat, try a different PyTorch version before assuming the direction itself is bad.
 
