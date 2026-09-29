@@ -50,6 +50,7 @@ folder_paths.folder_names_and_paths["stylegan_directions"] = (current_direction_
 # - !!Completing "image analogies" like A:B::C:D (the latent vector of D is calculated as C+B-A)
 
 LATENT_METADATA_KEY = "stylegan_latent"
+MODEL_METADATA_KEY = "stylegan_model_file"
 
 # --- Auto-embed latent metadata into any SaveImage/PreviewImage output --------
 #
@@ -67,19 +68,21 @@ LATENT_METADATA_KEY = "stylegan_latent"
 # (which is what actually decides how long a tensor needs to stay alive).
 _latent_registry = WeakTensorKeyDictionary()
 
-def _register_latent_for_images(image_tensor, latent_tensor):
-    _latent_registry[image_tensor] = latent_tensor.detach().cpu()
+def _register_latent_for_images(image_tensor, latent_tensor, model_file=None):
+    _latent_registry[image_tensor] = (latent_tensor.detach().cpu(), model_file)
 
 def _lookup_latent_for_images(image_tensor):
-    return _latent_registry.get(image_tensor)
+    return _latent_registry.get(image_tensor, (None, None))
 
-def _embed_latent_in_png(path, latent, compress_level):
+def _embed_latent_in_png(path, latent, model_file, compress_level):
     img = Image.open(path)
     metadata = PngInfo()
     for k, v in img.info.items():
         if isinstance(v, str):
             metadata.add_text(k, v)
     metadata.add_text(LATENT_METADATA_KEY, tensor2str(latent))
+    if model_file:
+        metadata.add_text(MODEL_METADATA_KEY, model_file)
     img.save(path, pnginfo=metadata, compress_level=compress_level)
 
 def _patch_core_save_nodes():
@@ -95,7 +98,7 @@ def _patch_core_save_nodes():
 
     def patched_save_images(self, images, *args, **kwargs):
         result = original_save_images(self, images, *args, **kwargs)
-        latent = _lookup_latent_for_images(images)
+        latent, model_file = _lookup_latent_for_images(images)
         if latent is not None and not comfy_args.disable_metadata:
             try:
                 entries = result.get("ui", {}).get("images", [])
@@ -109,7 +112,7 @@ def _patch_core_save_nodes():
                     idx = min(i, latent.size(0) - 1)
                     directory = type_to_dir.get(entry.get("type"), folder_paths.get_output_directory())
                     path = os.path.join(directory, entry.get("subfolder", ""), entry["filename"])
-                    _embed_latent_in_png(path, latent[idx:idx + 1], compress_level)
+                    _embed_latent_in_png(path, latent[idx:idx + 1], model_file, compress_level)
             except Exception as e:
                 print(f"StyleGAN: couldn't auto-embed latent metadata: {e}")
         return result
@@ -160,7 +163,8 @@ class LoadStyleGANLatentImg:
                 "stylegan_image": (files, {"image_upload": True}),
             },
         }
-    RETURN_TYPES = ("IMAGE", "STYLEGAN_LATENT")
+    RETURN_TYPES = ("IMAGE", "STYLEGAN_LATENT", "STRING")
+    RETURN_NAMES = ("image", "stylegan_latent", "model_file")
     FUNCTION = "load_latent_image"
     CATEGORY = "StyleGAN"
 
@@ -186,12 +190,13 @@ class LoadStyleGANLatentImg:
         if encoded is None:
             raise ValueError(f"{stylegan_image} has no '{LATENT_METADATA_KEY}' metadata; it wasn't produced by a StyleGANSampler output saved with SaveImage/PreviewImage/SaveStyleGANLatentImg")
         latent = str2tensor(encoded).to(get_torch_device())
+        model_file = img.info.get(MODEL_METADATA_KEY, "")
 
         image = np.array(img.convert("RGB")).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
-        _register_latent_for_images(image, latent)
+        _register_latent_for_images(image, latent, model_file or None)
 
-        return (image, latent)
+        return (image, latent, model_file)
 
 class SaveStyleGANLatentImg:
     def __init__(self):
@@ -216,6 +221,8 @@ class SaveStyleGANLatentImg:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix, self.output_dir, stylegan_image[0].shape[1], stylegan_image[0].shape[0])
 
+        _, model_file = _lookup_latent_for_images(stylegan_image)
+
         results = []
         for batch_number, image in enumerate(stylegan_image):
             i = 255. * image.cpu().numpy()
@@ -225,6 +232,8 @@ class SaveStyleGANLatentImg:
             index = min(batch_number, stylegan_latent.size(0) - 1)
             latent = stylegan_latent[index:index + 1]
             metadata.add_text(LATENT_METADATA_KEY, tensor2str(latent))
+            if model_file:
+                metadata.add_text(MODEL_METADATA_KEY, model_file)
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
@@ -310,7 +319,9 @@ class LoadStyleGAN:
                     save_stylegan_safetensors(G, cache_path)
                 except Exception as e:
                     print(f"StyleGAN: couldn't cache {cache_path} as safetensors: {e}")
-        return (G.to(get_torch_device()),)
+        G = G.to(get_torch_device())
+        G.stylegan_source_file = stylegan_file
+        return (G,)
 
 class LoadStyleGANDirections:
     @classmethod
@@ -411,7 +422,7 @@ class StyleGANSampler:
                 pbar.update(1)
         
         imgs = torch.cat(imgs, dim=0)
-        _register_latent_for_images(imgs, stylegan_latent)
+        _register_latent_for_images(imgs, stylegan_latent, getattr(stylegan_model, "stylegan_source_file", None))
         return (imgs, stylegan_latent, )
 
 class StyleGANInversion:
@@ -651,7 +662,7 @@ class StyleGANDirectionSweep:
                 pbar.update(1)
 
         imgs = torch.cat(imgs, dim=0)
-        _register_latent_for_images(imgs, torch.cat(latents, dim=0))
+        _register_latent_for_images(imgs, torch.cat(latents, dim=0), getattr(stylegan_model, "stylegan_source_file", None))
         return (imgs,)
 
 class BatchAverageStyleGANLatents:

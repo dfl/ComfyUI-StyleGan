@@ -42,6 +42,8 @@ Any image saved with `SaveStyleGANLatentImg` has its exact latent embedded in th
 
 You don't actually need `SaveStyleGANLatentImg` specifically: this extension patches core `SaveImage`/`PreviewImage` so *any* save of a `StyleGANSampler` output automatically carries the same embedded latent, no extra node required. (Look for a `StyleGAN:` prefix in the server log if you're ever debugging unrelated `SaveImage` behavior and want to rule this out.)
 
+`LoadStyleGANLatentImg`'s third output, `model_file`, is the filename of the model that generated the latent (e.g. `BroGANv1.2.0.safetensors`) — useful for checking two images actually came from the same model before blending them; latents from different checkpoints aren't guaranteed compatible.
+
 To try the example workflow above as-is (not just as a template), copy `examples/face_A.png` and `examples/face_B.png` into your `ComfyUI/input/` folder first — the workflow's two `LoadStyleGANLatentImg` nodes reference those exact filenames, which (unlike the seed-mixer example) aren't portable on their own since they're specific saved images, not a seed number.
 
 ## Latent direction discovery (GANSpace / SeFa)
