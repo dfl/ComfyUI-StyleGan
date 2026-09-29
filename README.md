@@ -1,7 +1,7 @@
 # ComfyUI-StyleGan
 
 Basic support for StyleGAN2 and StyleGAN3 models.  
-![workflow](https://raw.githubusercontent.com/spacepxl/ComfyUI-StyleGan/main/workflow.png)
+![workflow](workflow.png)
 
 Original:  
 https://github.com/NVlabs/stylegan3
@@ -52,6 +52,12 @@ python discover_directions.py model.safetensors --method sefa --sweep 0,1,2 --sw
 ```
 
 This saves a `.safetensors` file (same folder as the model by default) with each component as its own named tensor (`component_00`, `component_01`, ...), and can optionally render a sweep-preview PNG grid for a few components in one shot (the `--sweep` option needs the compiled StyleGAN CUDA/MPS ops, same as running the model in ComfyUI; discovery itself does not). `LoadStyleGANDirections` loads this file: leave `direction_name` blank to get the whole batch back (for `StyleGANDirectionSweep`-style exploration by `component_index`), or fill it in once you know which component you want (e.g. `component_03`) to load just that one direction.
+
+![direction editing workflow](workflow_directions.png)
+
+Example above: `BroGANv1.2.0`, GANSpace `component_02`, coarse mask, strength 5 — a clean, disentangled smile direction. Drag the image into ComfyUI to load the workflow.
+
+**A note on MPS + PyTorch versions:** we found StyleGAN3 synthesis results can differ meaningfully between PyTorch versions on the same MPS device for the same seed/direction (verified: torch 2.7.0 and 2.10.0 reproduce cleanly, torch 2.14.0 gave visibly different, worse results for this same example). If a direction that should show a clear effect looks wrong or flat, try a different PyTorch version before assuming the direction itself is bad.
 
 ## StyleGAN + FaceID
 
