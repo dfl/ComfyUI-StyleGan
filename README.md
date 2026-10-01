@@ -1,7 +1,7 @@
 # ComfyUI-StyleGan
 
 Basic support for StyleGAN2 and StyleGAN3 models.  
-![workflow](workflow.png)
+![workflow](workflows/workflow.png)
 
 This is [@dfl](https://github.com/dfl)'s actively maintained fork of [spacepxl/ComfyUI-StyleGan](https://github.com/spacepxl/ComfyUI-StyleGan), with several additions on top of the original: automatic `.safetensors` caching/conversion for `.pkl` checkpoints, latent embedding in saved PNGs (with model-compatibility tracking), seed/image mixing, unsupervised latent direction discovery (GANSpace/SeFa) with strength-sweep previews, and StyleGAN+FaceID support.
 
@@ -33,13 +33,13 @@ python convert_to_safetensors.py model.pkl
 
 ## Seed mixing
 
-![seed mixer workflow](workflow_mixer.png)
+![seed mixer workflow](workflows/workflow_mixer.png)
 
 `BlendStyleGANLatents` lerp/slerp-blends two latents using a coarse/mid/fine mask, for style-mixing between two generated faces. Drag the image above into ComfyUI to load the example workflow.
 
 ### Mixing from saved images instead of seeds
 
-![load and blend workflow](workflow_latent_img_mixer.png)
+![load and blend workflow](workflows/workflow_latent_img_mixer.png)
 
 Any image saved with `SaveStyleGANLatentImg` has its exact latent embedded in the PNG. `LoadStyleGANLatentImg` reads that back out directly (instant, exact, no seed or generation history needed) so you can blend two *files* instead of two seeds: drag/copy the images into ComfyUI's `input/` folder, then `LoadStyleGANLatentImg` x2 → `BlendStyleGANLatents` → `StyleGANSampler`, same as the seed-mixer above. A PNG with no embedded latent (e.g. a plain photo) raises a clear error instead of silently failing — for that case, use `StyleGANInversion` instead, which approximates a latent for *any* image via optimization.
 
@@ -68,7 +68,7 @@ python discover_directions.py model.safetensors --method sefa --sweep 0,1,2 --sw
 
 This saves a `.safetensors` file (same folder as the model by default) with each component as its own named tensor (`component_00`, `component_01`, ...), and can optionally render a sweep-preview PNG grid for a few components in one shot (the `--sweep` option needs the compiled StyleGAN CUDA/MPS ops, same as running the model in ComfyUI; discovery itself does not). `LoadStyleGANDirections` loads this file: leave `direction_name` blank to get the whole batch back (for `StyleGANDirectionSweep`-style exploration by `component_index`), or fill it in once you know which component you want (e.g. `component_03`) to load just that one direction.
 
-![direction editing workflow](workflow_directions.png)
+![direction editing workflow](workflows/workflow_directions.png)
 
 Example above: `BroGANv1.2.0`, GANSpace `component_02`, coarse mask, `StyleGANDirectionSweep` from 0 to 9 in 4 steps — a clean, disentangled smile direction that starts breaking down past ~strength 7-8 (visible ghosting at +9). Drag the image into ComfyUI to load the workflow.
 
@@ -76,13 +76,19 @@ Example above: `BroGANv1.2.0`, GANSpace `component_02`, coarse mask, `StyleGANDi
 
 ## StyleGAN + FaceID
 
-![faceid workflow](workflow_faceid.png)
+![faceid workflow](workflows/workflow_faceid.png)
 
 StyleGAN's mapping network generates a face latent (and rendered face) far faster than a diffusion model, making it a good identity source for `IPAdapter FaceID`/InstantID: generate a candidate face with `GenerateStyleGANLatent` + `StyleGANSampler`, then feed that image into `IPAdapterUnifiedLoaderFaceID` to condition an SD1.5/SDXL checkpoint's generation on that identity. Drag the image above into ComfyUI to load the example workflow.
 
 ## StyleGAN + Krea 2 identity editing
 
 A StyleGAN-generated face also works as the source image for [ComfyUI-Krea2Edit](https://github.com/lbouaraba/comfyui-krea2edit)'s Krea 2 Identity Edit LoRA, which does instruction-based, identity-preserving edits ("recolor the car to matte black", pose/outfit/scene changes, etc.) instead of resampling a new face: generate a candidate face with `GenerateStyleGANLatent` + `StyleGANSampler`, then wire that image into `VAEEncode` (→ `Krea2EditModelPatch.source_latent`) and `Krea2EditGroundedEncode.image` in place of a `LoadImage` node, same as any other Krea2Edit source. See that repo's README for full node wiring and usage notes.
+
+## StyleGAN + SUPIR upscaling
+
+![supir upscale workflow](workflows/workflow_supir_upscale.png)
+
+StyleGAN outputs are low resolution (typically 512-1024px) and can look soft or slightly artifacted. Feeding a generated face from `StyleGANSampler` into a SUPIR restore/upscale pass adds realistic skin and hair detail while keeping the identity. Drag the image above into ComfyUI to load the example workflow.
 
 ## Installation
 
